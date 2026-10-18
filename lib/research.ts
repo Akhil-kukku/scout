@@ -39,6 +39,7 @@ export interface ResearchResultItem {
   source?: string
   sourceType?: string
   publishedDate?: string
+  score?: number
 }
 
 export interface ResearchResponse {
@@ -159,7 +160,10 @@ export function validateRequestBody(raw: unknown):
   }
 }
 
-export function normalizeTavilyResults(payload: unknown): ResearchResultItem[] {
+export function normalizeTavilyResults(
+  payload: unknown,
+  maxLimit = MAX_RESULTS,
+): ResearchResultItem[] {
   const list = Array.isArray(payload)
     ? payload
     : Array.isArray((payload as { results?: unknown })?.results)
@@ -189,10 +193,13 @@ export function normalizeTavilyResults(payload: unknown): ResearchResultItem[] {
     if (typeof item.published_date === 'string' && item.published_date) {
       result.publishedDate = item.published_date
     }
+    if (typeof item.score === 'number' && Number.isFinite(item.score)) {
+      result.score = item.score
+    }
 
     items.push(result)
 
-    if (items.length >= MAX_RESULTS) break
+    if (items.length >= maxLimit) break
   }
 
   return items
@@ -210,7 +217,7 @@ export function buildResearchResponse(
     provider: 'tavily',
     generatedAt: new Date().toISOString(),
     warnings: [
-      'This is live search output, not a verified recommendation or ranked shortlist.',
+      'This is live search output, ranked and deduplicated for relevance and source diversity. It is not a verified recommendation or ranked shortlist.',
     ],
     isDemo: false,
     preferences,
@@ -225,3 +232,12 @@ export function createApiError(code: string, message: string) {
     },
   }
 }
+
+export {
+  calculateRelevanceScore,
+  deduplicateResults,
+  extractDomain,
+  normalizeUrl,
+  rankAndDeduplicateResults,
+  tokenizeQuery,
+} from './ranking'

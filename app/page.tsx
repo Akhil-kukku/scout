@@ -210,9 +210,9 @@ export default function Page() {
                 </div>
 
                 <div className="mt-5 rounded-xl border border-[#e2d7b8] bg-[#f6f0df] p-3 text-xs leading-5 text-[#6f6243]">
-                  This is live search output from Tavily. It is not a verified recommendation or
-                  ranked shortlist. Preferences: {budget} · {priority}. These values are recorded but
-                  not yet used to rank results.
+                  This is live search output from Tavily, deduplicated and ranked for query relevance
+                  and source diversity. It is not a verified recommendation or ranked shortlist.
+                  Preferences: {budget} · {priority}.
                 </div>
 
                 {error && (

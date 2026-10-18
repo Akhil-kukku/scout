@@ -5,12 +5,14 @@ import {
   buildResearchResponse,
   createApiError,
   normalizeTavilyResults,
+  rankAndDeduplicateResults,
   validateRequestBody,
 } from '@/lib/research'
 
 export const runtime = 'nodejs'
 
 const REQUEST_TIMEOUT_MS = 15000
+const CANDIDATE_POOL_SIZE = 15
 
 export async function POST(request: Request) {
   try {
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
           include_answer: false,
           include_raw_content: false,
           include_images: false,
-          max_results: MAX_RESULTS,
+          max_results: CANDIDATE_POOL_SIZE,
         }),
         signal: controller.signal,
       })
@@ -69,10 +71,20 @@ export async function POST(request: Request) {
       }
 
       const payload = await response.json()
-      const results = normalizeTavilyResults(payload)
+      const normalizedCandidates = normalizeTavilyResults(payload, CANDIDATE_POOL_SIZE)
+
+      const rankedResults = rankAndDeduplicateResults(
+        normalizedCandidates,
+        validated.value.query,
+        {
+          budget: validated.value.budget,
+          priority: validated.value.priority,
+        },
+        MAX_RESULTS,
+      )
 
       return NextResponse.json(
-        buildResearchResponse(validated.value.query, results, {
+        buildResearchResponse(validated.value.query, rankedResults, {
           budget: validated.value.budget,
           priority: validated.value.priority,
         }),
