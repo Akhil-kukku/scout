@@ -28,8 +28,8 @@ export interface ResearchPreferences {
 
 export interface ResearchRequestBody {
   query: string
-  budget?: string
-  priority?: string
+  budget: ResearchBudget
+  priority: ResearchPriority
 }
 
 export interface ResearchResultItem {
@@ -82,6 +82,14 @@ export function normalizeQuery(value: unknown) {
   return normalizeWhitespace(value)
 }
 
+function isResearchBudget(value: string): value is ResearchBudget {
+  return (VALID_BUDGETS as readonly string[]).includes(value)
+}
+
+function isResearchPriority(value: string): value is ResearchPriority {
+  return (VALID_PRIORITIES as readonly string[]).includes(value)
+}
+
 export function validateRequestBody(raw: unknown):
   | { ok: true; value: ResearchRequestBody }
   | { ok: false; error: { code: string; message: string } } {
@@ -118,10 +126,10 @@ export function validateRequestBody(raw: unknown):
     }
   }
 
-  const budgetValue = typeof body.budget === 'string' ? body.budget : 'Flexible'
-  const priorityValue = typeof body.priority === 'string' ? body.priority : 'Balanced'
+  const rawBudget = typeof body.budget === 'string' ? body.budget : 'Flexible'
+  const rawPriority = typeof body.priority === 'string' ? body.priority : 'Balanced'
 
-  if (budgetValue && !VALID_BUDGETS.includes(budgetValue as ResearchBudget)) {
+  if (!isResearchBudget(rawBudget)) {
     return {
       ok: false,
       error: {
@@ -131,7 +139,7 @@ export function validateRequestBody(raw: unknown):
     }
   }
 
-  if (priorityValue && !VALID_PRIORITIES.includes(priorityValue as ResearchPriority)) {
+  if (!isResearchPriority(rawPriority)) {
     return {
       ok: false,
       error: {
@@ -145,41 +153,49 @@ export function validateRequestBody(raw: unknown):
     ok: true,
     value: {
       query,
-      budget: budgetValue,
-      priority: priorityValue,
+      budget: rawBudget,
+      priority: rawPriority,
     },
   }
 }
 
 export function normalizeTavilyResults(payload: unknown): ResearchResultItem[] {
-  const list = Array.isArray(payload) ? payload : Array.isArray((payload as { results?: unknown })?.results) ? (payload as { results: unknown[] }).results : []
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as { results?: unknown })?.results)
+      ? (payload as { results: unknown[] }).results
+      : []
 
-  return list
-    .map((entry) => {
-      const item = entry as Record<string, unknown>
-      const rawUrl = typeof item.url === 'string' ? item.url : ''
-      const title = sanitizeText(item.title, 'Untitled result')
-      const snippet = sanitizeText(item.content ?? item.snippet ?? item.summary ?? item.description, 'No summary available.', MAX_SNIPPET_LENGTH)
+  const items: ResearchResultItem[] = []
 
-      if (!rawUrl || !isValidHttpUrl(rawUrl)) {
-        return null
-      }
+  for (const entry of list) {
+    if (!entry || typeof entry !== 'object') continue
+    const item = entry as Record<string, unknown>
 
-      const source = typeof item.source === 'string' ? item.source : undefined
-      const sourceType = typeof item.source_type === 'string' ? item.source_type : undefined
-      const publishedDate = typeof item.published_date === 'string' ? item.published_date : undefined
+    const rawUrl = typeof item.url === 'string' ? item.url : ''
+    if (!rawUrl || !isValidHttpUrl(rawUrl)) continue
 
-      return {
-        title,
-        url: rawUrl,
-        snippet,
-        source,
-        sourceType,
-        publishedDate,
-      }
-    })
-    .filter((item): item is ResearchResultItem => item !== null)
-    .slice(0, MAX_RESULTS)
+    const title = sanitizeText(item.title, 'Untitled result')
+    const snippet = sanitizeText(
+      item.content ?? item.snippet ?? item.summary ?? item.description,
+      'No summary available.',
+      MAX_SNIPPET_LENGTH,
+    )
+
+    const result: ResearchResultItem = { title, url: rawUrl, snippet }
+
+    if (typeof item.source === 'string' && item.source) result.source = item.source
+    if (typeof item.source_type === 'string' && item.source_type) result.sourceType = item.source_type
+    if (typeof item.published_date === 'string' && item.published_date) {
+      result.publishedDate = item.published_date
+    }
+
+    items.push(result)
+
+    if (items.length >= MAX_RESULTS) break
+  }
+
+  return items
 }
 
 export function buildResearchResponse(

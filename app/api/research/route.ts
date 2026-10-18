@@ -73,8 +73,8 @@ export async function POST(request: Request) {
 
       return NextResponse.json(
         buildResearchResponse(validated.value.query, results, {
-          budget: validated.value.budget ?? 'Flexible',
-          priority: validated.value.priority ?? 'Balanced',
+          budget: validated.value.budget,
+          priority: validated.value.priority,
         }),
         { status: 200 },
       )
